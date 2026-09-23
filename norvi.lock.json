@@ -2,8 +2,50 @@
   "version": 2,
   "enforcementLevel": "strict",
   "libraries": {
-    "manager": [],
-    "managerResolved": [],
+    "manager": [
+      {
+        "name": "RTClib",
+        "version": "2.1.4",
+        "scope": "shared"
+      },
+      {
+        "name": "Adafruit SSD1306",
+        "version": "2.5.17",
+        "scope": "shared"
+      },
+      {
+        "name": "Adafruit GFX Library",
+        "version": "1.12.6",
+        "scope": "shared"
+      },
+      {
+        "name": "Ethernet",
+        "version": "2.0.2",
+        "scope": "shared"
+      }
+    ],
+    "managerResolved": [
+      {
+        "name": "Adafruit BusIO",
+        "version": "1.17.4"
+      },
+      {
+        "name": "Adafruit GFX Library",
+        "version": "1.12.6"
+      },
+      {
+        "name": "Adafruit SSD1306",
+        "version": "2.5.17"
+      },
+      {
+        "name": "Ethernet",
+        "version": "2.0.2"
+      },
+      {
+        "name": "RTClib",
+        "version": "2.1.4"
+      }
+    ],
     "git": []
   }
 }
