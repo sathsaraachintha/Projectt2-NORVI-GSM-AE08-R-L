@@ -17,11 +17,6 @@
         "name": "Adafruit GFX Library",
         "version": "1.12.6",
         "scope": "shared"
-      },
-      {
-        "name": "Ethernet",
-        "version": "2.0.2",
-        "scope": "shared"
       }
     ],
     "managerResolved": [
@@ -42,6 +37,14 @@
         "version": "2.1.4"
       }
     ],
-    "git": []
+    "git": [
+      {
+        "name": "Ethernet",
+        "url": "https://github.com/arduino-libraries/Ethernet",
+        "commit": "8f13ac98da690d8bebe5cae6e56b6bd4e5e57e46",
+        "contentSha256": "aea3e131168786a04d6e9d0985c9329544c77ff38b9f5d7e6d84ec95167c30a4",
+        "scope": "shared"
+      }
+    ]
   }
 }
