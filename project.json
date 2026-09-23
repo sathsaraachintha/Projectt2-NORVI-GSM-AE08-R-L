@@ -1,0 +1,12 @@
+{
+  "userId": "u_fc77dfc82af6666a",
+  "projectId": "Project2 NORVI GSM-AE08-R-L",
+  "name": "Project2 NORVI GSM-AE08-R-L",
+  "board": {
+    "fqbn": "esp32:esp32:esp32"
+  },
+  "selections": null,
+  "serial": null,
+  "createdAt": "2026-09-23T10:30:27.314Z",
+  "updatedAt": "2026-09-23T10:30:27.314Z"
+}
