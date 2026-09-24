@@ -9,8 +9,8 @@
 #include <ModbusMaster.h>
 
 // --- TinyGSM Definitions ---
-// BG96 is the standard TinyGSM driver for Quectel EC21/EC25 LTE Modems
-#define TINY_GSM_MODEM_BG96 
+// Use the SIM7600 driver for SIMCom SIM7500/SIM7600 modules
+#define TINY_GSM_MODEM_SIM7600 
 #include <TinyGsmClient.h>
 #include <ArduinoHttpClient.h>
 
@@ -107,12 +107,12 @@ void setup() {
   node.postTransmission(postTransmission);
 
   // Initialize Modem via TinyGSM
-  Serial.println("Initializing modem...");
+  Serial.println("Initializing modem... (Waiting 10 seconds for boot)");
   Serial2.begin(115200, SERIAL_8N1, GSM_RX, GSM_TX);
-  delay(3000);
+  delay(10000); // Give the SIM7500 10 seconds to fully wake up
 
-  if (!modem.restart()) {
-    Serial.println("Modem restart failed!");
+  if (!modem.init()) { 
+    Serial.println("Modem init failed!");
     simStatus = "MODEM FAIL";
   } else {
     Serial.println("Connecting to cellular network...");
