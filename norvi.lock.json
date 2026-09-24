@@ -17,6 +17,26 @@
         "name": "Adafruit SSD1306",
         "version": "2.5.17",
         "scope": "shared"
+      },
+      {
+        "name": "RTClib",
+        "version": "2.1.4",
+        "scope": "shared"
+      },
+      {
+        "name": "TinyGSM",
+        "version": "0.12.0",
+        "scope": "shared"
+      },
+      {
+        "name": "ArduinoHttpClient",
+        "version": "0.6.1",
+        "scope": "shared"
+      },
+      {
+        "name": "ModbusMaster",
+        "version": "2.0.1",
+        "scope": "shared"
       }
     ],
     "managerResolved": [
@@ -33,8 +53,24 @@
         "version": "2.5.17"
       },
       {
+        "name": "ArduinoHttpClient",
+        "version": "0.6.1"
+      },
+      {
         "name": "Ethernet",
         "version": "2.0.2"
+      },
+      {
+        "name": "ModbusMaster",
+        "version": "2.0.1"
+      },
+      {
+        "name": "RTClib",
+        "version": "2.1.4"
+      },
+      {
+        "name": "TinyGSM",
+        "version": "0.12.0"
       }
     ],
     "git": []
