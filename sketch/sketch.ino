@@ -36,7 +36,6 @@
 #define OLED_RESET -1
 
 // --- Network Credentials ---
-// REPLACE with your Sri Lankan provider's APN (e.g., "dialogbb", "mobitel", "hutch3g")
 const char apn[]  = "hutch3g"; 
 const char user[] = "";
 const char pass[] = "";
@@ -183,13 +182,16 @@ void sendToDatacake(float t, float h) {
   String payload = "[{\"field\":\"TEMPERATURE\",\"value\":" + String(t) + "},";
   payload += "{\"field\":\"HUMIDITY\",\"value\":" + String(h) + "}]";
   
+  // Print exactly what we are sending to check for typos!
+  Serial.println("Sending Payload: " + payload);
+  
   String path = String("/v1/devices/") + deviceID + "/telemetry";
 
   // Standard HTTP POST using the ArduinoHttpClient
   http.beginRequest();
   http.post(path);
   http.sendHeader("Host", server);
-  http.sendHeader("Authorization", String("Token ") + token);
+  http.sendHeader("Authorization", String("Token ") + String(token));
   http.sendHeader("Content-Type", "application/json");
   http.sendHeader("Content-Length", payload.length());
   http.beginBody();
@@ -198,10 +200,13 @@ void sendToDatacake(float t, float h) {
 
   // Check the response from Datacake
   int statusCode = http.responseStatusCode();
-  if (statusCode > 0) {
+  String responseBody = http.responseBody(); // Grab the server's explanation
+  
+  if (statusCode >= 200 && statusCode < 300) {
     Serial.printf("Success! Server replied with code: %d\n", statusCode);
   } else {
     Serial.printf("Failed to connect. Error code: %d\n", statusCode);
+    Serial.println("Datacake says: " + responseBody); // Print why it failed!
   }
 }
 
