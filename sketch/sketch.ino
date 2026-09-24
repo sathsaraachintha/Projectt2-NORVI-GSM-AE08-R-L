@@ -5,6 +5,7 @@
 #include <Adafruit_SSD1306.h>
 #include "FS.h"
 #include "SD.h"
+#include "RTClib.h"  // <-- New RTC Library
 
 // --- Pin Definitions ---
 // SD & Ethernet (Shared SPI)
@@ -14,7 +15,7 @@
 #define SD_CS    15
 #define ETH_CS   5
 
-// OLED Display (I2C)
+// OLED Display & RTC (Shared I2C)
 #define I2C_SDA  16
 #define I2C_SCL  17
 #define SCREEN_WIDTH 128
@@ -26,21 +27,23 @@
 #define GSM_TX    32
 #define GSM_RESET 21
 
-// Test Inputs/Outputs (Change these to your specific NORVI input pins)
-#define TEST_INPUT_PIN 34 // Example digital input
-#define BLINK_LED_PIN  2  // Example status LED
+// Test Inputs/Outputs
+#define TEST_INPUT_PIN 34 // Change to your NORVI input pin
+#define BLINK_LED_PIN  2  // Status LED
 
 // --- Global Objects ---
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-byte mac[] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}; // Realistic MAC to bypass router blocks
+RTC_DS3231 rtc;           // <-- RTC Object
+byte mac[] = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}; 
 
 // --- Status Variables ---
 String sdStatus  = "Checking...";
 String ethStatus = "Checking...";
 String simStatus = "Checking...";
+bool rtcFound = false;
 bool ledState = false;
 unsigned long previousMillis = 0;
-const long blinkInterval = 500; // Blink every 500ms
+const long blinkInterval = 500; // Screen and LED update twice a second
 
 void setup() {
   Serial.begin(115200);
@@ -50,10 +53,12 @@ void setup() {
   pinMode(TEST_INPUT_PIN, INPUT);
   pinMode(BLINK_LED_PIN, OUTPUT);
   pinMode(GSM_RESET, OUTPUT);
-  digitalWrite(GSM_RESET, HIGH); // Power up modem
+  digitalWrite(GSM_RESET, HIGH); 
 
-  // 2. Initialize OLED Display
+  // 2. Initialize Shared I2C (OLED & RTC)
   Wire.begin(I2C_SDA, I2C_SCL);
+  
+  // Start OLED
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("OLED Failed");
   } else {
@@ -61,45 +66,57 @@ void setup() {
     display.setTextColor(WHITE);
     display.setTextSize(1);
     display.setCursor(0, 0);
-    display.println("NORVI System Boot...");
+    display.println("System Booting...");
     display.display();
+  }
+
+  // Start RTC
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+  } else {
+    rtcFound = true;
+    // If the RTC lost power/battery, set it to the time the code was compiled
+    if (rtc.lostPower()) {
+      Serial.println("RTC lost power, setting time...");
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
   }
 
   // 3. Initialize Shared SPI Bus
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
 
   // 4. Initialize SD Card
-  Serial.print("Mounting SD Card... ");
+  Serial.print("Mounting SD... ");
   if (!SD.begin(SD_CS)) {
-    sdStatus = "FAIL / Not Found";
+    sdStatus = "FAIL";
     Serial.println("Failed.");
   } else {
     int cardSize = SD.cardSize() / (1024 * 1024);
-    sdStatus = "OK (" + String(cardSize) + "MB)";
+    sdStatus = String(cardSize) + "MB OK";
     Serial.println("Success.");
   }
   updateScreen();
 
   // 5. Initialize Ethernet
-  Serial.print("Starting Ethernet... ");
+  Serial.print("Starting ETH... ");
   Ethernet.init(ETH_CS);
   if (Ethernet.begin(mac) == 0) {
-    ethStatus = "FAIL / No DHCP";
+    ethStatus = "No DHCP";
     Serial.println("Failed.");
   } else {
-    ethStatus = "IP: " + Ethernet.localIP().toString();
+    ethStatus = Ethernet.localIP().toString();
     Serial.println(ethStatus);
   }
   updateScreen();
 
-  // 6. Initialize Cellular Modem
+  // 6. Initialize Modem
   Serial.println("Starting Modem (Wait 10s)...");
   display.setCursor(0, 40);
-  display.print("Modem: Booting...");
+  display.print("SIM: Booting...");
   display.display();
   
   Serial2.begin(115200, SERIAL_8N1, GSM_RX, GSM_TX);
-  delay(10000); // Give the modem time to register on the network
+  delay(10000); 
   
   Serial2.println("AT+CPIN?");
   delay(1000);
@@ -109,38 +126,27 @@ void setup() {
   }
   
   if (modemReply.indexOf("READY") != -1) {
-    simStatus = "READY (SIM OK)";
-    Serial.println("Modem SIM Ready.");
-  } else if (modemReply.indexOf("ERROR") != -1) {
-    simStatus = "ERROR (Check SIM)";
-    Serial.println("Modem SIM Error.");
+    simStatus = "READY";
   } else {
-    simStatus = "NO RESPONSE";
-    Serial.println("Modem Not Responding.");
+    simStatus = "ERROR/NO SIM";
   }
-  
   updateScreen();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // 1. Non-Blocking Blink & Input Read (Happens every 500ms)
+  // Update screen, time, inputs, and LED every 500ms
   if (currentMillis - previousMillis >= blinkInterval) {
     previousMillis = currentMillis;
-    
-    // Toggle the LED
     ledState = !ledState;
     digitalWrite(BLINK_LED_PIN, ledState);
-    
-    // Refresh the dashboard with the latest input states
     updateScreen(); 
   }
 
-  // 2. Maintain Ethernet DHCP Lease
   Ethernet.maintain();
 
-  // 3. Serial Passthrough for Modem (Allows you to type AT commands manually)
+  // Modem Passthrough
   while (Serial.available()) {
     Serial2.write(Serial.read());
   }
@@ -149,36 +155,43 @@ void loop() {
   }
 }
 
-// --- Helper Function to redraw the OLED Dashboard ---
+// --- Helper Function to redraw the Dashboard ---
 void updateScreen() {
   display.clearDisplay();
   
-  // Title
+  // 1. Top Row: Live RTC Time
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("--- NORVI STATUS ---");
+  if (rtcFound) {
+    DateTime now = rtc.now();
+    char timeStr[20];
+    // Formats time as "TIME: HH:MM:SS" with leading zeros
+    sprintf(timeStr, "TIME: %02d:%02d:%02d", now.hour(), now.minute(), now.second());
+    display.print(timeStr);
+  } else {
+    display.print("TIME: RTC ERROR");
+  }
 
-  // Subsystems
+  // 2. Middle Rows: Hardware Status
   display.setCursor(0, 15);
   display.print("SD : "); 
   display.println(sdStatus);
   
-  display.setCursor(0, 25);
+  display.setCursor(0, 26);
   display.print("ETH: "); 
   display.println(ethStatus);
   
-  display.setCursor(0, 35);
+  display.setCursor(0, 37);
   display.print("SIM: "); 
   display.println(simStatus);
 
-  // Live Input & Blink Indicator
+  // 3. Bottom Row: Inputs & Heartbeat
   int inputState = digitalRead(TEST_INPUT_PIN);
-  
-  display.setCursor(0, 50);
+  display.setCursor(0, 52);
   display.print("IN34: ");
   display.print(inputState == HIGH ? "HIGH" : "LOW ");
   
-  // Visual blinking cursor on the screen to prove it hasn't frozen
+  // Blinking asterisk shows the ESP32 is running without freezing
   display.print("      RUN ");
   if (ledState) {
     display.print("*");
