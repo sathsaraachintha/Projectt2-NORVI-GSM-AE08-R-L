@@ -1,4 +1,4 @@
-// NORVI GSM-AE08-R-L -> Modbus temp/humidity -> Datacake HTTP Payload Decoder
+// NORVI GSM-AE08-R-L -> Modbus temp/humidity -> Datacake HTTP Payload Decoder + SMS alert
 // HTTPS is done by the modem itself (AT+HTTP*), no TinyGsmClientSecure needed.
 
 #define TINY_GSM_MODEM_SIM7600
@@ -16,8 +16,17 @@
 // --- Settings ---
 const char apn[] = "hutch3g";
 const char datacakeUrl[]  = "https://api.datacake.co/integrations/api/f527a000-c64b-4ea2-b69b-34818e69866a/";
-const char deviceSerial[] = "YOUR_DEVICE_SERIAL";   // <-- Serial Number of the device in Datacake
+const char deviceSerial[] = "021db3eb-a86b-4d9f-8c2a-6d00e8cf7f8f";   // <-- Serial Number of the device in Datacake
 const unsigned long SEND_INTERVAL_MS = 60000;
+
+// --- SMS alert settings ---
+const char smsNumber[] = "+94729066829";            
+const float TEMP_ALERT_HIGH  = 30.0;                
+const float TEMP_ALERT_RESET = 29.0;               
+const unsigned long SMS_REPEAT_MS = 30UL * 60UL * 1000UL;  
+
+bool alertSent = false;
+unsigned long lastSmsTime = 0;
 
 TinyGsm modem(Serial2);
 ModbusMaster node;
@@ -27,8 +36,10 @@ void postTransmission() { digitalWrite(MODBUS_FC, LOW); }
 
 // --- Raw AT helper: send cmd, wait until `expect` appears (or timeout), return everything received ---
 String at(const String &cmd, const char *expect, uint32_t timeoutMs) {
-  while (Serial2.available()) Serial2.read();   // flush old data
-  if (cmd.length()) Serial2.println(cmd);
+  if (cmd.length()) {
+    while (Serial2.available()) Serial2.read();   // flush old data only when sending a new command
+    Serial2.println(cmd);
+  }
   String resp = "";
   uint32_t start = millis();
   while (millis() - start < timeoutMs) {
@@ -51,6 +62,49 @@ bool connectNetwork() {
   if (!modem.gprsConnect(apn, "", "")) { Serial.println("GPRS connection failed"); return false; }
   Serial.println("GPRS connected");
   return true;
+}
+
+// --- Send SMS ---
+bool sendSMS(const String &number, const String &text) {
+  Serial.println("Sending SMS to " + number + " ...");
+
+  at("AT+CMGF=1", "OK", 3000);                 // text mode
+  at("AT+CSCS=\"GSM\"", "OK", 3000);
+
+  String r = at("AT+CMGS=\"" + number + "\"", ">", 10000);
+  if (r.indexOf(">") < 0) {
+    Serial.println("CMGS prompt failed: " + r);
+    return false;
+  }
+
+  Serial2.print(text);
+  Serial2.write(0x1A);                         // Ctrl+Z ends the message
+
+  r = at("", "+CMGS:", 60000);
+  if (r.indexOf("+CMGS:") >= 0) {
+    Serial.println("SMS sent!");
+    return true;
+  }
+  Serial.println("SMS failed: " + r);
+  return false;
+}
+
+// --- Alert logic: SMS once when temp goes above limit, again every 30 min if still hot ---
+void checkAlert(float t, float h) {
+  if (t > TEMP_ALERT_HIGH) {
+    bool firstTime = !alertSent;
+    bool repeatDue = alertSent && (millis() - lastSmsTime >= SMS_REPEAT_MS);
+    if (firstTime || repeatDue) {
+      String msg = "ALERT: Temperature is " + String(t, 1) + " C (limit " +
+                   String(TEMP_ALERT_HIGH, 0) + " C). Humidity " + String(h, 1) + " %.";
+      if (sendSMS(smsNumber, msg)) {
+        alertSent = true;
+        lastSmsTime = millis();
+      }
+    }
+  } else if (t < TEMP_ALERT_RESET) {
+    alertSent = false;   // re-arm for next time
+  }
 }
 
 void sendToDatacake(float t, float h) {
@@ -133,6 +187,9 @@ void loop() {
     Serial.println("-----------------------------------");
     Serial.print("Temperature: "); Serial.print(temperature); Serial.println(" C");
     Serial.print("Humidity: ");    Serial.print(humidity);    Serial.println(" %");
+
+    // SMS alert (works over the cellular network, no GPRS needed)
+    checkAlert(temperature, humidity);
 
     if (!modem.isGprsConnected()) {
       Serial.println("Modem disconnected. Reconnecting...");
