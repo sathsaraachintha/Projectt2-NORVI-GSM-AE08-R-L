@@ -1,3 +1,4 @@
+
 // NORVI GSM-AE08-R-L -> Modbus temp/humidity -> Datacake HTTP Payload Decoder + SMS alert
 // HTTPS is done by the modem itself (AT+HTTP*), no TinyGsmClientSecure needed.
 
